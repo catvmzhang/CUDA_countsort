@@ -2,9 +2,9 @@
 #include <stdio.h>
 #include <time.h>
 
-#define LISTSIZE 1000000
+#define LISTSIZE 10000000
 #define MAXNUM 10000
-#define THREAD_PER_BLOCK 256
+#define THREAD_PER_BLOCK 1024
 
 __global__ void gpu_countsort(int* globalTable_d, int* unsort){
 	__shared__ int table[MAXNUM];
@@ -33,6 +33,11 @@ void genList(int** unsort){
 
 int main()
 {
+	float time;
+	cudaEvent_t start, stop;
+	cudaEventCreate(&start);
+	cudaEventCreate(&stop);
+
 	int *unsort;
 	genList(&unsort);
 
@@ -46,9 +51,13 @@ int main()
 
 	int blockNum;
 	blockNum = (LISTSIZE/THREAD_PER_BLOCK) + ( LISTSIZE%THREAD_PER_BLOCK==0 ?0:1 );
+	cudaEventRecord(start, 0);
 	gpu_countsort<<<blockNum, THREAD_PER_BLOCK>>>(table_d, unsort_d);
-
+	cudaEventRecord(stop, 0);
+	cudaEventSynchronize(stop);
+	cudaEventElapsedTime(&time, start, stop);
 	cudaDeviceSynchronize();
+	printf("time in gpu: %31.f ms\n", time);
 
 	int *table, *sort;
 	sort = (int*)malloc(listSize);
@@ -61,6 +70,10 @@ int main()
 		for(int j=0; j<table[i]; j++) sort[index++] = i+1;
 	}
 
+	cudaEventRecord(stop, 0);
+	cudaEventSynchronize(stop);
+	cudaEventElapsedTime(&time, start, stop);
+	printf("time in cpu: %31.f ms\n", time);
 //	for(int i=0; i<LISTSIZE; i++) printf("%d ", sort[i]);
 
 	cudaFree(unsort_d);
